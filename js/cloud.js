@@ -13,7 +13,7 @@
   var inFrame=false;try{inFrame=window.self!==window.top;}catch(e){inFrame=true;}
   var rawSet=Storage.prototype.setItem;
   var client=window.supabase.createClient(window.SUPABASE_URL,window.SUPABASE_KEY);
-  var session=null, pending={}, timer=null;
+  var session=null, pending={}, timer=null, leaving=false;
   // Otras partes (p. ej. el diagrama de flujo compartido) esperan a tener sesión con esto.
   var readyResolve;
   window.cloudReady=new Promise(function(r){readyResolve=r;});
@@ -108,11 +108,22 @@
     b.className=host.classList.contains('dl-pills')?'pill-btn ghost':'btn';
     b.title='Sesión iniciada como '+session.user.email+'. Pulsa para cerrar sesión.';
     b.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg><span>Cerrar sesión</span>';
+    // Confirmación dentro del propio botón: algunos navegadores bloquean confirm() y lo dan por cancelado.
+    var label=b.querySelector('span'),armT=0;
     b.addEventListener('click',async function(){
-      if(!confirm('¿Cerrar la sesión de '+session.user.email+'?\nTus datos quedan guardados en la nube.'))return;
+      if(!b.dataset.armed){
+        b.dataset.armed='1';label.textContent='Pulsa otra vez para salir';
+        armT=setTimeout(function(){delete b.dataset.armed;label.textContent='Cerrar sesión';},4000);
+        return;
+      }
+      clearTimeout(armT);b.disabled=true;label.textContent='Cerrando…';
+      leaving=true;
       flush();
       await new Promise(function(r){setTimeout(r,400);});
-      await client.auth.signOut();
+      try{var r=await client.auth.signOut();if(r&&r.error)await client.auth.signOut({scope:'local'});}
+      catch(e){try{await client.auth.signOut({scope:'local'});}catch(e2){}}
+      // Por si el servidor no respondió: la sesión se borra de este navegador igualmente.
+      try{Object.keys(localStorage).forEach(function(k){if(/^sb-.*-auth-token/.test(k))localStorage.removeItem(k);});}catch(e){}
       clearLocal();
       try{localStorage.removeItem(USER);}catch(e){}
       location.replace('login.html');
@@ -127,7 +138,7 @@
     session=s;
     client.auth.onAuthStateChange(function(ev,ns){
       if(ns)session=ns;
-      if(ev==='SIGNED_OUT')goLogin();
+      if(ev==='SIGNED_OUT'&&!leaving)goLogin();
     });
     // Otro usuario en este navegador: no mezclar sus datos. La primera vez, lo que ya hubiera se sube.
     var prev=localStorage.getItem(USER);
