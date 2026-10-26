@@ -194,7 +194,8 @@ input:focus{outline:2px solid #00d0ff;outline-offset:1px}
 
   $('google').onclick=async function(){
     busy(true);say('Abriendo Google…');
-    var r=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:base+'login.html?next='+encodeURIComponent(next)}});
+    // prompt=select_account: Google muestra siempre la lista de cuentas en vez de entrar con la última usada.
+    var r=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:base+'login.html?next='+encodeURIComponent(next),queryParams:{prompt:'select_account'}}});
     if(r.error){busy(false);say(/provider is not enabled/i.test(r.error.message)?'El inicio con Google aún no está activado.':errText(r.error),'err');}
   };
 
