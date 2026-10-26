@@ -2,9 +2,10 @@
    - flujo.html?tablero=<id> abre un tablero de Supabase en lugar del diagrama personal.
    - Cada cambio se envía por forma/flecha (Realtime broadcast) y se guarda con la función apply_flow_ops,
      así dos personas que tocan cosas distintas no se pisan.
-   - La presencia muestra quién está conectado y qué forma tiene seleccionada cada uno.
-   Usa D, H, SEL, VIEW, DRAG, fix, snap, node, cleanSel, render, draw, fit, toast y esc de flujo.html.
-   En la app de Windows (sin cloud.js) no hace nada. */
+   - En vivo se ve el cursor de cada persona, lo que tiene seleccionado, lo que arrastra y lo que escribe.
+   - La presencia es por ventana: la misma cuenta abierta en dos sitios aparece como «otra ventana».
+   Usa D, H, SEL, VIEW, DRAG, EDIT, PROPS_BEFORE, svg, ed, fix, snap, node, edge, toWorld, cleanSel,
+   render, draw, fit, toast y esc de flujo.html. En la app de Windows (sin cloud.js) no hace nada. */
 (function(){
   if(window.NL_PORT||!window.cloudReady){window.FlowCollab=null;return;}
   var params=new URLSearchParams(location.search);
@@ -14,8 +15,11 @@
   window.FlowCollab=C;
 
   var sb=null,user=null,token=null,channel=null,owner=null;
+  // Identificador de esta ventana: cada ventana es un participante distinto.
+  var conn=Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);
   var SYNCED=null,pend=null,flushT=0,retryT=0,loading=false,buffer=[];
-  var peers={},peerSel={},lastSel='',selT=0,liveT=0;
+  var peers={},peerSel={},peerCur={},typing={},liveTouched={};
+  var lastSel='',selT=0,liveT=0,curT=0,typeT=0;
   var COLORS=['#e8590c','#7048e8','#0ca678','#d6336c','#1c7ed6','#f08c00','#2f9e44','#ae3ec9'];
   function colorFor(id){var h=0;for(var i=0;i<id.length;i++)h=(h*31+id.charCodeAt(i))|0;return COLORS[Math.abs(h)%COLORS.length];}
   function nameOf(u){var m=u.user_metadata||{};return m.full_name||m.name||(u.email||'').split('@')[0]||'Usuario';}
@@ -31,6 +35,12 @@
   }
   function diff(){
     var cur=index(D),ops={nodes:[],edges:[],del:[]},id;
+    // Lo que otra persona está arrastrando o escribiendo solo se ve: no es un cambio mío y no se guarda desde aquí.
+    for(id in liveTouched){
+      if(busyWith(id))continue;
+      if(id in cur.n&&id in SYNCED.n)cur.n[id]=SYNCED.n[id];
+      if(id in cur.e&&id in SYNCED.e)cur.e[id]=SYNCED.e[id];
+    }
     for(id in cur.n)if(SYNCED.n[id]!==cur.n[id])ops.nodes.push(JSON.parse(cur.n[id]));
     for(id in cur.e)if(SYNCED.e[id]!==cur.e[id])ops.edges.push(JSON.parse(cur.e[id]));
     for(id in SYNCED.n)if(!(id in cur.n))ops.del.push(id);
@@ -49,25 +59,76 @@
     (ops.edges||[]).forEach(function(e){var i=d.edges.findIndex(function(x){return x.id===e.id;});if(i>=0)d.edges[i]=e;else d.edges.push(e);});
     if(ops.name!=null)d.name=ops.name;
   }
+  function busyWith(id){
+    if(EDIT&&EDIT.id===id)return true;
+    if(DRAG&&(DRAG.id===id||(DRAG.start&&DRAG.start.some(function(s){return s.id===id;}))))return true;
+    return false;
+  }
 
   /* ---------- cambios de otras personas ---------- */
   function onRemote(ops){
     if(loading){buffer.push(ops);return;}
+    // Si estoy escribiendo en esa misma forma, conservo mi texto.
+    var mine=EDIT&&EDIT.kind==='node'?node(EDIT.id):EDIT&&EDIT.kind==='edge'?edge(EDIT.id):null;
+    var keep=mine?{id:mine.id,text:mine.text,label:mine.label,h:mine.h,y:mine.y}:null;
     applyTo(D,clone(ops));
-    (ops.nodes||[]).forEach(function(n){SYNCED.n[n.id]=JSON.stringify(n);});
-    (ops.edges||[]).forEach(function(e){SYNCED.e[e.id]=JSON.stringify(e);});
-    (ops.del||[]).forEach(function(id){delete SYNCED.n[id];delete SYNCED.e[id];});
+    if(keep){var it=node(keep.id)||edge(keep.id);if(it){if(EDIT.kind==='node')Object.assign(it,{text:keep.text,h:keep.h,y:keep.y});else it.label=keep.label;}}
+    (ops.nodes||[]).forEach(function(n){SYNCED.n[n.id]=JSON.stringify(n);delete liveTouched[n.id];});
+    (ops.edges||[]).forEach(function(e){SYNCED.e[e.id]=JSON.stringify(e);delete liveTouched[e.id];});
+    (ops.del||[]).forEach(function(id){delete SYNCED.n[id];delete SYNCED.e[id];delete liveTouched[id];});
     if(ops.name!=null)SYNCED.name=ops.name;
-    // Deshacer solo debe deshacer lo propio: los cambios ajenos se incorporan también al historial.
+    // Deshacer solo debe deshacer lo propio: los cambios ajenos se incorporan también a las copias guardadas.
     var patch=function(s){var d=JSON.parse(s);applyTo(d,clone(ops));return JSON.stringify(d);};
     H.past=H.past.map(patch);H.future=H.future.map(patch);
+    if(EDIT&&EDIT.before)EDIT.before=patch(EDIT.before);
+    if(DRAG&&DRAG.before)DRAG.before=patch(DRAG.before);
+    if(typeof PROPS_BEFORE==='string'&&PROPS_BEFORE)PROPS_BEFORE=patch(PROPS_BEFORE);
     cleanSel();render();
   }
+  // Cambios en curso (arrastrar, escribir): se ven al momento pero no se guardan hasta que la persona termina.
   function onLive(p){
-    if(loading||!p||!p.nodes)return;
-    p.nodes.forEach(function(n){var o=node(n.id);if(o)Object.assign(o,{x:n.x,y:n.y,w:n.w,h:n.h});});
+    if(loading||!p)return;
+    var now=Date.now();
+    (p.nodes||[]).forEach(function(n){
+      var o=node(n.id);if(!o||busyWith(n.id))return;
+      ['x','y','w','h','text'].forEach(function(k){if(n[k]!==undefined)o[k]=n[k];});
+      liveTouched[n.id]=now;
+    });
+    (p.edges||[]).forEach(function(e){
+      var o=edge(e.id);if(!o||busyWith(e.id))return;
+      if(e.label!==undefined)o.label=e.label;
+      liveTouched[e.id]=now;
+    });
+    if(p.conn){if(p.typing)typing[p.conn]={id:p.typing,t:now};else delete typing[p.conn];}
+    // Terminó de escribir o canceló: se muestra lo guardado (si terminó, el cambio ya llegó antes por «ops»).
+    if(p.done){
+      delete liveTouched[p.done];
+      var s=SYNCED&&(SYNCED.n[p.done]||SYNCED.e[p.done]),list=SYNCED&&SYNCED.n[p.done]?D.nodes:D.edges;
+      var i=list.findIndex(function(x){return x.id===p.done;});
+      if(s&&i>=0&&!busyWith(p.done))list[i]=JSON.parse(s);
+    }
     render();
   }
+  // Si alguien deja de enviar (canceló o se fue) se vuelve a lo guardado.
+  setInterval(function(){
+    if(!SYNCED)return;
+    var now=Date.now(),changed=false;
+    Object.keys(liveTouched).forEach(function(id){
+      if(now-liveTouched[id]<6000)return;
+      delete liveTouched[id];
+      if(busyWith(id))return;
+      var s=SYNCED.n[id],list=D.nodes;
+      if(!s){s=SYNCED.e[id];list=D.edges;}
+      if(!s)return;
+      var i=list.findIndex(function(x){return x.id===id;});
+      if(i>=0&&JSON.stringify(list[i])!==s){list[i]=JSON.parse(s);changed=true;}
+    });
+    Object.keys(typing).forEach(function(k){if(now-typing[k].t>5000){delete typing[k];changed=true;}});
+    Object.keys(peerCur).forEach(function(k){if(now-peerCur[k].t>30000){delete peerCur[k];changed=true;}});
+    // Mientras escribo, aviso cada poco aunque esté pensando, para que no desaparezca mi texto en los demás.
+    if(EDIT&&channel&&now-typeT>2000)sendTyping();
+    if(changed)render();
+  },1500);
 
   /* ---------- envío y guardado ---------- */
   function send(event,payload){if(channel)channel.send({type:'broadcast',event:event,payload:payload});}
@@ -103,6 +164,7 @@
     if(!pend)setStatus('live');
   }
   window.addEventListener('pagehide',function(){
+    send('cur',{conn:conn,x:null});
     if(!pend||!token)return;
     var p=pend;pend=null;
     var b=JSON.stringify(body(p));
@@ -110,29 +172,54 @@
       headers:{'apikey':window.SUPABASE_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:b});
   });
 
-  // Mientras alguien arrastra o cambia el tamaño, los demás lo ven moverse.
-  document.addEventListener('pointermove',function(){
-    if(!channel||!SYNCED||typeof DRAG==='undefined'||!DRAG)return;
+  // Arrastrar o cambiar el tamaño: los demás lo ven moverse. Y mi cursor, siempre.
+  function onPointerMove(ev){
+    if(!channel||!SYNCED)return;
+    var now=Date.now();
+    if(now-curT>=50&&ev.target&&ev.target.closest&&ev.target.closest('#stage')){
+      curT=now;var p=toWorld(ev.clientX,ev.clientY);
+      send('cur',{conn:conn,x:Math.round(p.x),y:Math.round(p.y)});
+    }
+    if(!DRAG)return;
     var ids=DRAG.k==='move'&&DRAG.moved?DRAG.start.map(function(s){return s.id;}):DRAG.k==='rsz'?[DRAG.id]:null;
-    if(!ids)return;
-    var now=Date.now();if(now-liveT<60)return;liveT=now;
-    send('live',{nodes:ids.map(function(id){var n=node(id);return n&&{id:n.id,x:n.x,y:n.y,w:n.w,h:n.h};}).filter(Boolean)});
-  });
+    if(!ids||now-liveT<60)return;
+    liveT=now;
+    send('live',{conn:conn,nodes:ids.map(function(id){var n=node(id);return n&&{id:n.id,x:n.x,y:n.y,w:n.w,h:n.h};}).filter(Boolean)});
+  }
+  function sendTyping(){
+    if(!EDIT)return;
+    typeT=Date.now();
+    var it=EDIT.kind==='node'?node(EDIT.id):edge(EDIT.id);if(!it)return;
+    if(EDIT.kind==='node')send('live',{conn:conn,typing:it.id,nodes:[{id:it.id,text:ed.value,h:it.h,y:it.y}]});
+    else send('live',{conn:conn,typing:it.id,edges:[{id:it.id,label:ed.value}]});
+  }
+  var typingSendT=0;
+  function onType(){clearTimeout(typingSendT);typingSendT=setTimeout(sendTyping,Date.now()-typeT>150?0:150);}
 
-  /* ---------- selección de los demás (se dibuja sobre el lienzo) ---------- */
-  function sendSel(){var ids=[...SEL];lastSel=ids.join(',');send('sel',{uid:user.id,ids:ids});}
+  /* ---------- lo que hacen los demás, dibujado sobre el lienzo ---------- */
+  function sendSel(){var ids=[...SEL];lastSel=ids.join(',');send('sel',{conn:conn,ids:ids});}
   window.collabOverlay=function(){
     if(!channel)return '';
     var key=[...SEL].join(',');
     if(key!==lastSel){clearTimeout(selT);selT=setTimeout(sendSel,120);}
     var z=VIEW.z,s='';
-    Object.keys(peerSel).forEach(function(uid){
-      var p=peers[uid];if(!p)return;
-      (peerSel[uid]||[]).forEach(function(id){
+    Object.keys(peers).forEach(function(k){
+      var p=peers[k],ids=(peerSel[k]||[]).slice();
+      if(typing[k]&&ids.indexOf(typing[k].id)<0)ids.push(typing[k].id);
+      ids.forEach(function(id){
         var n=node(id);if(!n)return;var m=5/z;
+        var label=p.label+(typing[k]&&typing[k].id===id?' ✎ escribiendo…':'');
         s+='<rect x="'+(n.x-m)+'" y="'+(n.y-m)+'" width="'+(n.w+2*m)+'" height="'+(n.h+2*m)+'" rx="'+(6/z)+'" fill="none" stroke="'+p.color+'" stroke-width="'+(2.5/z)+'" stroke-dasharray="'+(7/z)+' '+(4/z)+'" pointer-events="none"/>'+
-           '<text x="'+(n.x-m)+'" y="'+(n.y-m-5/z)+'" font-size="'+(11/z)+'" font-weight="700" font-family="Arial,sans-serif" fill="'+p.color+'" pointer-events="none">'+esc(p.name)+'</text>';
+           '<text x="'+(n.x-m)+'" y="'+(n.y-m-5/z)+'" font-size="'+(11/z)+'" font-weight="700" font-family="Arial,sans-serif" fill="'+p.color+'" pointer-events="none">'+esc(label)+'</text>';
       });
+    });
+    Object.keys(peerCur).forEach(function(k){
+      var p=peers[k],c=peerCur[k];if(!p||c.x==null)return;
+      var w=Math.round(p.label.length*6.6+12);
+      s+='<g transform="translate('+c.x+','+c.y+') scale('+(1/z)+')" pointer-events="none">'+
+         '<path d="M0,0 L0,17 L4.6,12.6 L8,20 L11,18.7 L7.7,11.6 L14,11.6 Z" fill="'+p.color+'" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"/>'+
+         '<rect x="13" y="17" rx="5" width="'+w+'" height="19" fill="'+p.color+'"/>'+
+         '<text x="19" y="30.5" font-size="11.5" font-weight="700" font-family="Arial,sans-serif" fill="#fff">'+esc(p.label)+'</text></g>';
     });
     return s;
   };
@@ -157,7 +244,8 @@
     '.cl-list a small{display:block;font-weight:400;color:var(--muted);font-size:.78rem}'+
     '.cl-list a:hover,.cl-list a.on{background:var(--accent-soft)}'+
     '.cl-panel .btn{width:100%;justify-content:center;margin-top:6px}'+
-    '.cl-tag{font-size:.72rem;font-weight:700;color:var(--accent);border:1px solid var(--accent);border-radius:99px;padding:1px 8px;white-space:nowrap}';
+    '.cl-tag{font-size:.72rem;font-weight:700;color:var(--accent);border:1px solid var(--accent);border-radius:99px;padding:1px 8px;white-space:nowrap}'+
+    '.cl-tag.mine{color:var(--muted);border-color:var(--line)}';
   document.head.appendChild(css);
 
   var ui={};
@@ -176,11 +264,13 @@
     ui.btn.addEventListener('click',function(e){e.stopPropagation();ui.panel.hidden?openPanel():closePanel();});
     ui.panel.addEventListener('click',function(e){e.stopPropagation();});
     document.addEventListener('click',closePanel);
-    if(boardId){
-      ui.btn.lastChild.textContent='Invitar';
-      var tag=document.createElement('span');tag.className='cl-tag';tag.textContent='Compartido';
-      var t=document.querySelector('header.top .title');if(t)t.appendChild(tag);
-    }
+    // Etiqueta junto al título: que siempre quede claro si es el diagrama propio o el compartido.
+    var tag=document.createElement('span');
+    tag.className='cl-tag'+(boardId?'':' mine');
+    tag.textContent=boardId?'Compartido':'Personal';
+    tag.title=boardId?'Lo ven y editan en vivo todas las personas invitadas':'Solo lo ves tú. Para trabajar en equipo usa «Compartir».';
+    var t=document.querySelector('header.top .title');if(t)t.appendChild(tag);
+    if(boardId)ui.btn.lastChild.textContent='Invitar';
   }
   function closePanel(){if(ui.panel){ui.panel.hidden=true;ui.btn.setAttribute('aria-expanded','false');}}
   function inviteUrl(){return location.origin+location.pathname+'?tablero='+boardId;}
@@ -188,10 +278,10 @@
     ui.panel.hidden=false;ui.btn.setAttribute('aria-expanded','true');
     var h='';
     if(boardId){
-      h+='<h3>Invitar a este tablero</h3><p>Quien abra este enlace e inicie sesión podrá editar el diagrama contigo en tiempo real.</p>'+
+      h+='<h3>Invitar a este tablero</h3><p>Quien abra este enlace e inicie sesión verá y editará el diagrama contigo en tiempo real.</p>'+
          '<div class="cl-link"><input readonly value="'+esc(inviteUrl())+'" aria-label="Enlace de invitación"><button class="btn small" type="button" data-a="copy">Copiar</button></div>';
     }else{
-      h+='<h3>Trabajar en equipo</h3><p>Crea un tablero compartido a partir de este diagrama e invita a otras personas con un enlace.</p>'+
+      h+='<h3>Trabajar en equipo</h3><p>Este diagrama es personal: solo lo ves tú. Crea un tablero compartido a partir de él e invita a otras personas con un enlace; todos veréis en vivo lo que hace cada uno.</p>'+
          '<button class="btn primary" type="button" data-a="create">Crear tablero compartido</button><br><br>';
     }
     h+='<h3>Tus tableros compartidos</h3><div class="cl-list"><p>Cargando…</p></div>';
@@ -240,13 +330,13 @@
   function setStatus(s){if(!ui.st||!boardId)return;ui.st.hidden=false;ui.st.dataset.s=s;ui.st.lastChild.textContent=STATUS[s]||s;}
   function renderPeers(){
     if(!ui.people)return;
-    var all=[{uid:user.id,name:nameOf(user)+' (tú)',color:colorFor(user.id)}].concat(Object.keys(peers).map(function(k){return peers[k];}));
+    var all=[{label:'Tú',name:nameOf(user),color:colorFor(conn)}].concat(Object.keys(peers).map(function(k){return peers[k];}));
     ui.people.innerHTML=all.slice(0,6).map(function(p){
-      return '<span class="cl-av" style="background:'+p.color+'" title="'+esc(p.name)+'">'+esc(initials(p.name.replace(' (tú)','')))+'</span>';
+      return '<span class="cl-av" style="background:'+p.color+'" title="'+esc(p.label==='Tú'?p.name+' (tú)':p.label)+'">'+esc(initials(p.name))+'</span>';
     }).join('')+(all.length>6?'<span class="cl-av" style="background:#495057" title="'+(all.length-6)+' más">+'+(all.length-6)+'</span>':'');
   }
 
-  /* ---------- arranque ---------- */
+  /* ---------- conexión ---------- */
   // Si se pierde la conexión, se trae del servidor lo que haya cambiado mientras tanto.
   async function resync(){
     var r=await sb.from('flow_boards').select('data').eq('id',boardId).single();
@@ -262,15 +352,24 @@
   var reconnectT=0,subscribedOnce=false;
   function connect(){
     sb.realtime.setAuth(token);
-    var ch=sb.channel('flow:'+boardId,{config:{private:true,broadcast:{self:false},presence:{key:user.id}}});
+    var ch=sb.channel('flow:'+boardId,{config:{private:true,broadcast:{self:false},presence:{key:conn}}});
     channel=ch;
     ch.on('broadcast',{event:'ops'},function(m){onRemote(m.payload);});
     ch.on('broadcast',{event:'live'},function(m){onLive(m.payload);});
-    ch.on('broadcast',{event:'sel'},function(m){if(m.payload&&m.payload.uid){peerSel[m.payload.uid]=m.payload.ids||[];render();}});
+    ch.on('broadcast',{event:'sel'},function(m){if(m.payload&&m.payload.conn){peerSel[m.payload.conn]=m.payload.ids||[];render();}});
+    ch.on('broadcast',{event:'cur'},function(m){
+      var p=m.payload;if(!p||!p.conn)return;
+      if(p.x==null)delete peerCur[p.conn];else peerCur[p.conn]={x:p.x,y:p.y,t:Date.now()};
+      render();
+    });
     ch.on('presence',{event:'sync'},function(){
       var st=ch.presenceState(),next={};
-      Object.keys(st).forEach(function(k){if(k!==user.id&&st[k][0])next[k]=st[k][0];});
-      Object.keys(peerSel).forEach(function(k){if(!next[k])delete peerSel[k];});
+      Object.keys(st).forEach(function(k){
+        var p=st[k][0];if(k===conn||!p)return;
+        var name=p.name||'Usuario',same=p.uid===user.id;
+        next[k]={name:name,label:same?name+' (otra ventana)':name,color:p.color||colorFor(k),uid:p.uid};
+      });
+      [peerSel,peerCur,typing].forEach(function(map){Object.keys(map).forEach(function(k){if(!next[k])delete map[k];});});
       peers=next;renderPeers();render();
     });
     ch.on('presence',{event:'join'},function(){flush();setTimeout(sendSel,300);});
@@ -279,7 +378,7 @@
       ch.subscribe(function(status){
         if(ch!==channel)return;
         if(status==='SUBSCRIBED'){
-          ch.track({uid:user.id,name:nameOf(user),color:colorFor(user.id)});
+          ch.track({uid:user.id,name:nameOf(user),color:colorFor(conn)});
           setStatus(pend?'saving':'live');
           if(subscribedOnce)resync();
           subscribedOnce=true;
@@ -305,7 +404,12 @@
     var s=(await sb.auth.getSession()).data.session;token=s&&s.access_token;
     sb.auth.onAuthStateChange(function(ev,ns){if(ns){token=ns.access_token;if(channel)sb.realtime.setAuth(token);}});
     buildUI();
-    if(!boardId)return;
+    if(!boardId){
+      // Para que nadie se confunda trabajando en su diagrama personal creyendo que es el compartido.
+      var b=await sb.from('flow_boards').select('id',{count:'exact',head:true});
+      if(!b.error&&b.count)toast('Estás en tu diagrama personal. Tus tableros compartidos están en «Compartir».');
+      return;
+    }
     setStatus('connecting');
     var j=await sb.rpc('join_flow_board',{b:boardId});
     if(j.error||!j.data){toast('Este tablero no existe o se ha eliminado.');setTimeout(function(){location.replace('flujo.html');},1800);return;}
@@ -321,6 +425,13 @@
     buffer.splice(0).forEach(onRemote);
     // A partir de aquí, guardar = enviar los cambios al tablero (no al diagrama personal).
     save=sharedSave;
+    document.addEventListener('pointermove',onPointerMove);
+    svg.addEventListener('pointerleave',function(){send('cur',{conn:conn,x:null});});
+    ed.addEventListener('input',onType);
+    // Al terminar o cancelar la escritura, los demás dejan de ver «escribiendo…» al momento.
+    var origFinish=finishEdit,origCancel=cancelEdit;
+    finishEdit=function(){var id=EDIT&&EDIT.id;origFinish();if(id)send('live',{conn:conn,done:id});};
+    cancelEdit=function(){var id=EDIT&&EDIT.id;origCancel();if(id)send('live',{conn:conn,done:id});};
     document.title=D.name+' · Diagrama compartido';
     renderPeers();draw();if(D.nodes.length)fit();
   };

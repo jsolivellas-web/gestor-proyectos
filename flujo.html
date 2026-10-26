@@ -399,9 +399,12 @@ ed.addEventListener('keydown',e=>{
 ed.addEventListener('blur',()=>{if(EDIT)finishEdit();});
 function cancelEdit(){
   if(!EDIT)return;
-  const before=EDIT.before;
+  const {before,kind,id}=EDIT;
   EDIT=null;ed.hidden=true;
-  D=fix(JSON.parse(before));
+  // Solo se restaura la forma o flecha editada (en un tablero compartido, el resto puede haber cambiado).
+  const old=JSON.parse(before),list=kind==='node'?D.nodes:D.edges;
+  const o=(kind==='node'?old.nodes:old.edges).find(x=>x.id===id),i=list.findIndex(x=>x.id===id);
+  if(o&&i>=0)list[i]=o;
   save();render();
 }
 function finishEdit(){if(!EDIT)return;const it=EDIT.kind==='node'?node(EDIT.id):edge(EDIT.id);
