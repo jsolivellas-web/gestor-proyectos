@@ -28,6 +28,20 @@ alter table public.app_data enable row level security;
 -- Políticas: cada usuario autenticado solo puede leer y escribir sus propias filas.
 ```
 
+### Diagrama de flujo compartido
+
+En el diagrama de flujo, **Compartir › Crear tablero compartido** copia el diagrama a un tablero
+(`flujo.html?tablero=<id>`) y da un enlace de invitación. Quien lo abra e inicie sesión entra como
+miembro y edita a la vez que los demás:
+
+- `js/flujo-collab.js` envía cada cambio por forma/flecha con Supabase Realtime (canal privado
+  `flow:<id>`) y lo guarda con la función `apply_flow_ops`, que mezcla por id: dos personas que tocan
+  formas distintas no se pisan.
+- Se ve quién está conectado y qué forma tiene seleccionada cada persona; al arrastrar, los demás
+  ven moverse la forma.
+- Deshacer solo deshace los cambios propios.
+- Tablas `flow_boards` y `flow_board_members` con RLS: solo los miembros ven el tablero y su canal.
+
 ## Versión para Windows
 
 `Gestor de Proyectos.exe` (o el `.zip`) funciona sin internet y guarda los datos en el propio

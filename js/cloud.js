@@ -14,6 +14,9 @@
   var rawSet=Storage.prototype.setItem;
   var client=window.supabase.createClient(window.SUPABASE_URL,window.SUPABASE_KEY);
   var session=null, pending={}, timer=null;
+  // Otras partes (p. ej. el diagrama de flujo compartido) esperan a tener sesión con esto.
+  var readyResolve;
+  window.cloudReady=new Promise(function(r){readyResolve=r;});
 
   // Oculta la página hasta saber quién es el usuario y traer sus datos.
   var root=document.documentElement;
@@ -141,6 +144,7 @@
       }
     }
     reveal();
+    readyResolve({client:client,user:s.user});
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addAccountUI);
     else addAccountUI();
   })();
