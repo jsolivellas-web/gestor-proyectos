@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es" data-theme="dark">
+<html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -115,7 +115,6 @@ input:focus{outline:2px solid #00d0ff;outline-offset:1px}
 
 <script>
 (function(){
-  try{var t=localStorage.getItem('app-tema');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}
   var client=window.supabase.createClient(window.SUPABASE_URL,window.SUPABASE_KEY);
   var params=new URLSearchParams(location.search);
   var next=params.get('next')||'index.html';

@@ -146,34 +146,10 @@
     return restorePromise;
   }
 
-  /* ---- Tema claro / oscuro ---- */
-  function getTheme(){
-    try{
-      var t=localStorage.getItem('app-tema');
-      if(t==='dark'||t==='light')return t;
-    }catch(e){}
-    return 'dark';
-  }
-  function applyTheme(t){
-    document.documentElement.setAttribute('data-theme',t);
-    var btn=document.getElementById('nl-theme');
-    if(btn){
-      var isDark=t==='dark';
-      btn.title=isDark?'Cambiar a modo claro':'Cambiar a modo oscuro';
-      btn.setAttribute('aria-label',btn.title);
-      btn.innerHTML=isDark
-        ?'<svg class="ico" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><span>Claro</span>'
-        :'<svg class="ico" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><span>Oscuro</span>';
-    }
-    window.dispatchEvent(new CustomEvent('nl-theme-change',{detail:{theme:t}}));
-  }
-  function toggleTheme(){
-    var next=getTheme()==='dark'?'light':'dark';
-    try{localStorage.setItem('app-tema',next);}catch(e){}
-    applyTheme(next);
-    try{if(window.self!==window.top&&window.parent&&window.parent.document){window.parent.document.documentElement.setAttribute('data-theme',next);}}catch(e){}
-  }
-  applyTheme(getTheme());
+  /* ---- Tema: siempre claro (el modo oscuro se quitó porque no se leía bien) ---- */
+  function getTheme(){return 'light';}
+  function toggleTheme(){}
+  document.documentElement.setAttribute('data-theme','light');
 
   window.NLBridge={
     active:active,
@@ -186,18 +162,11 @@
     keys:KEYS
   };
 
-  // Botón para volver al menú principal y selector de tema.
+  // Botón para volver al menú principal.
   function addTopControls(){
     var isIndex=/(^|\/)(index\.html)?$/.test(location.pathname);
     var inFrame=false;try{inFrame=window.self!==window.top;}catch(e){inFrame=true;}
     var host=document.querySelector('header.top .actions')||document.querySelector('.top-actions');
-
-    if(!document.getElementById('nl-theme')){
-      var tb=document.createElement('button');
-      tb.type='button';tb.id='nl-theme';tb.className='btn';
-      tb.addEventListener('click',toggleTheme);
-      if(host)host.insertBefore(tb,host.firstChild);
-    }
 
     if(!isIndex&&!inFrame&&!document.getElementById('nl-menu')){
       var b=document.createElement('a');
@@ -217,7 +186,6 @@
         else{b.classList.add('nl-float');document.body.insertBefore(b,document.body.firstChild);}
       }
     }
-    applyTheme(getTheme());
   }
 
   var css=document.createElement('style');
