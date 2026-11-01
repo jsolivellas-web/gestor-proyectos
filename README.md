@@ -42,6 +42,18 @@ miembro y edita a la vez que los demás:
 - Deshacer solo deshace los cambios propios.
 - Tablas `flow_boards` y `flow_board_members` con RLS: solo los miembros ven el tablero y su canal.
 
+### Administración
+
+`admin.html` (enlace «Administrar» en el inicio, solo para administradores) permite ocultar a cada
+usuario los botones Corregir, Dar una pista y Ver solución del ejercicio PERT. `js/cloud.js` los deja
+ocultos hasta que `my_access()` confirma el permiso; sin fila en `user_access` se ve todo.
+
+- Tablas `app_admins` y `user_access`, sin políticas: solo se accede con funciones que comprueban
+  `is_app_admin()` (`admin_list_users`, `admin_set_access`).
+- Para añadir un administrador, insertar su `user_id` en `app_admins` desde Supabase.
+- Se oculta en la interfaz: quien sepa usar la consola del navegador podría ejecutar el cálculo, porque
+  la corrección corre en el propio navegador.
+
 ## Versión para Windows
 
 `Gestor de Proyectos.exe` (o el `.zip`) funciona sin internet y guarda los datos en el propio

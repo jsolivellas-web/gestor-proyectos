@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Administración · Gestor de Proyectos y PERT</title>
+<link rel="icon" href="icons/appIcon.png">
+<link rel="stylesheet" href="fonts/fonts.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/cloud.js"></script>
+<style>
+:root{
+  --bg:#e9ecf7;
+  --bg-grad:radial-gradient(circle at 30% 20%, #f5f7ff 0%, #e6eaf8 65%, #dce1f4 100%);
+  --card:#ffffff;
+  --card-hover:#f8f9ff;
+  --card-line:rgba(30,27,56,0.08);
+  --shadow:0 16px 36px rgba(28, 25, 58, 0.10), 0 2px 6px rgba(28,25,58,0.05);
+  --ink:#1e1b38;
+  --muted:#67638f;
+  --track:#d5d8ec;
+  --err:#c62f4b;
+  --grad-v:linear-gradient(180deg, #3b66ff 0%, #00d0ff 50%, #00f59b 100%);
+  --sans:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{min-height:100%;margin:0}
+body{background:var(--bg);background-image:var(--bg-grad);color:var(--ink);font-family:var(--sans);padding:32px 16px}
+.wrap{width:min(980px,100%);margin:0 auto;display:flex;flex-direction:column;gap:24px}
+.bcard{background:var(--card);border:1px solid var(--card-line);border-radius:16px;box-shadow:var(--shadow);position:relative}
+.head{padding:22px 24px 22px 46px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.head::before{content:"";position:absolute;left:24px;top:20px;bottom:20px;width:3px;border-radius:4px;background:var(--grad-v)}
+.head h1{margin:0;font-size:1.25rem}
+.head p{margin:4px 0 0;color:var(--muted);font-size:.94rem}
+.top-actions{display:flex;gap:10px;flex-wrap:wrap}
+.top-actions .btn{
+  border:1px solid var(--track);border-radius:99px;background:transparent;color:var(--ink);
+  font:inherit;font-weight:700;font-size:.85rem;padding:7px 14px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:7px;
+}
+.top-actions .btn:hover{background:var(--card-hover)}
+.panel{padding:8px 0;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.93rem}
+th,td{padding:10px 16px;text-align:left;border-bottom:1px solid var(--card-line)}
+tr:last-child td{border-bottom:0}
+th{color:var(--muted);font-weight:700;font-size:.82rem}
+th.c,td.c{text-align:center;width:96px}
+td input{width:18px;height:18px;cursor:pointer;accent-color:#3b66ff}
+td small{display:block;color:var(--muted)}
+.msg{margin:0;padding:18px 24px;color:var(--muted)}
+.msg.err{color:var(--err)}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="bcard head">
+    <div>
+      <h1>Administración</h1>
+      <p>Elige qué botones del ejercicio PERT ve cada usuario. El cambio se aplica cuando vuelve a cargar la página.</p>
+    </div>
+    <div class="top-actions"></div>
+  </header>
+  <section class="bcard panel">
+    <p class="msg" id="msg">Cargando usuarios…</p>
+    <table id="users" hidden>
+      <thead><tr><th>Usuario</th><th class="c">Corregir</th><th class="c">Dar una pista</th><th class="c">Ver solución</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+</main>
+
+<script src="js/neutralino.js"></script>
+<script src="js/bridge.js"></script>
+<script>
+(async function(){
+  var msg=document.getElementById('msg'),table=document.getElementById('users'),tbody=table.querySelector('tbody');
+  function esc(s){var d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML;}
+  function fail(t){msg.textContent=t;msg.className='msg err';msg.hidden=false;}
+  var ctx=await window.cloudReady;
+  if(!ctx.access.is_admin){location.replace('index.html');return;}
+  var client=ctx.client,res=await client.rpc('admin_list_users');
+  if(res.error){fail('No se han podido cargar los usuarios.');return;}
+  var users=res.data||[];
+  var COLS=['can_check','can_hint','can_solution'],LABEL={can_check:'Corregir',can_hint:'Dar una pista',can_solution:'Ver solución'};
+  tbody.innerHTML=users.map(function(u,i){
+    var who=u.name?esc(u.name)+'<small>'+esc(u.email)+'</small>':esc(u.email);
+    if(u.is_admin)return '<tr><td>'+who+'<small>Administrador</small></td><td class="c" colspan="3">Lo ve todo</td></tr>';
+    return '<tr data-i="'+i+'"><td>'+who+'</td>'+COLS.map(function(c){
+      return '<td class="c"><input type="checkbox" data-col="'+c+'"'+(u[c]?' checked':'')+' aria-label="'+esc(u.email)+': '+LABEL[c]+'"></td>';
+    }).join('')+'</tr>';
+  }).join('');
+  msg.hidden=true;table.hidden=false;
+  tbody.addEventListener('change',async function(e){
+    var box=e.target,row=box.closest('tr'),u=users[Number(row.dataset.i)];
+    u[box.dataset.col]=box.checked;
+    box.disabled=true;
+    var r=await client.rpc('admin_set_access',{u:u.id,p_check:u.can_check,p_hint:u.can_hint,p_solution:u.can_solution});
+    box.disabled=false;
+    if(r.error){
+      box.checked=!box.checked;u[box.dataset.col]=box.checked;
+      fail('No se ha podido guardar el cambio. Inténtalo de nuevo.');
+    }else msg.hidden=true;
+  });
+})();
+</script>
+</body>
+</html>

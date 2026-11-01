@@ -24,6 +24,11 @@
   var revealTimer=setTimeout(reveal,6000);
   function reveal(){clearTimeout(revealTimer);root.style.visibility='';}
 
+  // Lo que el administrador puede ocultar a cada usuario. Oculto hasta confirmar el permiso,
+  // así un fallo de red o una carga lenta no enseña nada de más.
+  var HIDE={can_check:'data-no-check',can_hint:'data-no-hint',can_solution:'data-no-sol'}, access={};
+  Object.keys(HIDE).forEach(function(k){root.setAttribute(HIDE[k],'');});
+
   function readMeta(){try{return JSON.parse(localStorage.getItem(META))||{};}catch(e){return {};}}
   function writeMeta(m){try{rawSet.call(localStorage,META,JSON.stringify(m));}catch(e){}}
   function clearLocal(){
@@ -99,6 +104,15 @@
     return changed;
   }
 
+  async function loadAccess(){
+    try{
+      var r=await client.rpc('my_access');
+      if(r.error||!r.data)return;
+      access=r.data;
+      Object.keys(HIDE).forEach(function(k){if(access[k])root.removeAttribute(HIDE[k]);});
+    }catch(e){}
+  }
+
   function addAccountUI(){
     if(inFrame||document.getElementById('cloud-account'))return;
     var host=document.querySelector('.dl-pills')||document.querySelector('header.top .actions')||document.querySelector('.top-actions');
@@ -129,6 +143,11 @@
       location.replace('login.html');
     });
     host.appendChild(b);
+    if(access.is_admin&&/(^|\/)(index\.html)?$/.test(location.pathname)){
+      var a=document.createElement('a');
+      a.href='admin.html';a.className='btn';a.textContent='Administrar';a.style.textDecoration='none';
+      host.insertBefore(a,b);
+    }
   }
 
   (async function(){
@@ -154,8 +173,9 @@
         location.reload();return;
       }
     }
+    await loadAccess();
     reveal();
-    readyResolve({client:client,user:s.user});
+    readyResolve({client:client,user:s.user,access:access});
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addAccountUI);
     else addAccountUI();
   })();

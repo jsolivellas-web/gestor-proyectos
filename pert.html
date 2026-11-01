@@ -160,6 +160,9 @@ tr.c td{background:var(--crit-soft)}
 .errs{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 .errs button{border:0;background:none;padding:0;font:inherit;color:var(--accent);text-decoration:underline;cursor:pointer;font-weight:700}
 .hint{margin:0;color:var(--muted);max-width:78ch}
+/* Botones que el administrador puede ocultar a cada usuario (ver js/cloud.js) */
+html[data-no-check] [data-check],html[data-no-hint] [data-hint],html[data-no-sol] #sol,
+html[data-no-check] .txt-help,html[data-no-hint] .txt-help{display:none}
 </style>
 </head>
 <body>
@@ -191,7 +194,7 @@ tr.c td{background:var(--crit-soft)}
     </div>
   </header>
 
-  <p class="intro">Escribe la duración de cada actividad y pulsa las letras de sus precedentes. El diagrama se dibuja solo, pero <b>los cálculos los haces tú</b>: rellena las casillas del diagrama o de la tabla (están conectadas) y pulsa <b>Corregir</b> o pide una <b>Pista</b>.</p>
+  <p class="intro">Escribe la duración de cada actividad y pulsa las letras de sus precedentes. El diagrama se dibuja solo, pero <b>los cálculos los haces tú</b>: rellena las casillas del diagrama o de la tabla (están conectadas)<span class="txt-help"> y pulsa <b>Corregir</b> o pide una <b>Pista</b></span>.</p>
 
   <section class="panel" aria-labelledby="h-act">
     <div class="head">
@@ -689,13 +692,13 @@ function check(){
 }
 function elsOf(r){if(r.k==='tot')return [$('#tot')];return ['b-','t-'].map(p=>document.getElementById(p+r.k+'-'+r.id)).filter(Boolean);}
 function applyStatus(){if(!STATUS)return;STATUS.forEach(r=>elsOf(r).forEach(el=>{el.classList.remove('st-ok','st-bad','st-drag','st-miss');el.classList.add('st-'+r.st);}));}
-function resetResult(){$('#result').innerHTML='<p class="hint">Cuando acabes, pulsa <b>Corregir</b> o pide una <b>Pista</b>. Verde: bien. Rojo: error en ese paso. Naranja: la operación está bien, pero arrastras un error anterior. Borde discontinuo: casilla vacía.</p>';}
+function resetResult(){$('#result').innerHTML='<p class="hint txt-help">Cuando acabes, pulsa <b>Corregir</b> o pide una <b>Pista</b>. Verde: bien. Rojo: error en ese paso. Naranja: la operación está bien, pero arrastras un error anterior. Borde discontinuo: casilla vacía.</p>';}
 
 function giveHint(){
   const list=check();if(!list)return;
   const next=list.find(r=>r.st==='bad')||list.find(r=>r.st==='miss');
   if(!next){
-    $('#result').innerHTML=`<div class="first good"><b>¡Ya tienes todo bien completado!</b> Pulsa <b>Corregir</b> para ver el resumen final.</div>`;
+    $('#result').innerHTML=`<div class="first good"><b>¡Ya tienes todo bien completado!</b><span class="txt-help"> Pulsa <b>Corregir</b> para ver el resumen final.</span></div>`;
     $('#result').scrollIntoView({block:'nearest',behavior:'smooth'});
     return;
   }
