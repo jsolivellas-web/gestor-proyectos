@@ -162,7 +162,8 @@ tr.c td{background:var(--crit-soft)}
 .hint{margin:0;color:var(--muted);max-width:78ch}
 /* Botones que el administrador puede ocultar a cada usuario (ver js/cloud.js) */
 html[data-no-check] [data-check],html[data-no-hint] [data-hint],html[data-no-sol] #sol,
-html[data-no-check] .txt-help,html[data-no-hint] .txt-help{display:none}
+html[data-no-check] .txt-help,html[data-no-hint] .txt-help,html:not([data-admin]) [data-solve]{display:none}
+[data-solve]{font-size:1.15rem;min-width:44px;justify-content:center}
 </style>
 </head>
 <body>
@@ -226,6 +227,7 @@ html[data-no-check] .txt-help,html[data-no-hint] .txt-help{display:none}
     <div class="head">
       <h2 id="h-dia">Diagrama</h2>
       <div class="bar">
+        <button type="button" class="btn primary" data-solve="1" title="Resolver el diagrama (solo administrador)" aria-label="Resolver el diagrama">=</button>
         <button type="button" class="btn primary" data-check="1">Corregir</button>
         <button type="button" class="btn" data-hint="1">Dar una pista</button>
         <button type="button" class="btn" id="copyimg">Copiar diagrama como imagen</button>
@@ -265,6 +267,7 @@ html[data-no-check] .txt-help,html[data-no-hint] .txt-help{display:none}
     <div class="head">
       <h2 id="h-cor">Corrección</h2>
       <div class="bar">
+        <button type="button" class="btn primary" data-solve="1" title="Resolver el diagrama (solo administrador)" aria-label="Resolver el diagrama">=</button>
         <button type="button" class="btn primary" data-check="1">Corregir</button>
         <button type="button" class="btn" data-hint="1">Dar una pista</button>
         <button type="button" class="btn" id="sol">Ver solución</button>
@@ -708,6 +711,7 @@ function giveHint(){
 }
 
 document.addEventListener('click',e=>{
+  if(e.target.closest('[data-solve]')){solveAll();return;}
   if(e.target.closest('[data-hint]')){giveHint();return;}
   if(e.target.closest('[data-check]')){
     STATUS=check();if(!STATUS)return;applyStatus();
@@ -724,6 +728,17 @@ document.addEventListener('click',e=>{
   const go=e.target.closest('[data-go]');if(go){const [k,id]=go.dataset.go.split('|');const el=k==='tot'?$('#tot'):document.getElementById('b-'+k+'-'+id)||document.getElementById('t-'+k+'-'+id);
     if(el){el.scrollIntoView({block:'center',behavior:'smooth'});el.focus();}return;}
 });
+// Botón «=» (solo administrador): rellena todas las casillas con la solución. Se puede deshacer.
+function solveAll(){
+  const C=compute();if(C.error){toast('Corrige primero el error de los precedentes.');return;}
+  const {R,total}=C;
+  record(()=>{S.tasks.forEach(t=>{const r=R[t.id];
+    t.u={es:fmt(r.es),ef:fmt(r.ef),ls:fmt(r.ls),lf:fmt(r.lf),h:fmt(r.slack),c:r.crit?'si':'no'};});
+    S.tot=fmt(total);});
+  renderResults();
+  const b=document.querySelector('[data-check]');if(b)b.click();
+  toast('Diagrama resuelto. Ctrl+Z para deshacer.');
+}
 let solArmed=null;
 $('#sol').onclick=()=>{const b=$('#sol');
   if(!solArmed){b.textContent='¿Seguro? Pulsa otra vez';solArmed=setTimeout(()=>{b.textContent='Ver solución';solArmed=null;},3500);return;}

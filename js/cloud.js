@@ -110,6 +110,7 @@
       if(r.error||!r.data)return;
       access=r.data;
       Object.keys(HIDE).forEach(function(k){if(access[k])root.removeAttribute(HIDE[k]);});
+      if(access.is_admin)root.setAttribute('data-admin','');
     }catch(e){}
   }
 
