@@ -1,0 +1,49 @@
+/* Paleta común con la regla 60-30-10: 60 % blanco (fondos), 30 % azul marino (cabeceras y bloques
+   destacados) y 10 % verde lima (botones principales y detalles). Se carga después del estilo de cada
+   página y solo cambia colores; los selectores llevan "html" delante para ganar a los de la página. */
+html:root,html:root[data-theme]{
+  --navy:#12244a; --navy-2:#1d3566; --lime:#c6f135; --lime-hover:#b5e01f;
+  --on-navy-muted:rgba(255,255,255,.78);
+
+  --bg:#f5f7fa; --bg-grad:none; --surface:#ffffff; --card:#ffffff; --card-hover:#f7f9fc;
+  --card-line:rgba(18,36,74,.10); --shadow:0 14px 32px rgba(18,36,74,.08),0 2px 6px rgba(18,36,74,.05);
+  --ink:#12244a; --muted:#4e5c78; --line:#d6dce7; --line2:#e8ecf3; --track:#d6dce7;
+  --accent:#1d3566; --accent-ink:#ffffff; --accent-soft:#eef9cc;
+  --bar:#1d3566; --bar-prog:#c6f135; --sum:#12244a; --arrow:#1d3566;
+  --field:#f5f7fa; --field-line:#d6dce7; --canvas:#fbfcfd; --dot:#cfd6e2;
+  --grad-h:var(--lime); --grad-v:var(--lime); --grad-diag:var(--navy);
+}
+
+/* 10 %: acción principal en verde lima */
+html .btn.primary,html .btn.grad{background:var(--lime);color:var(--navy);border-color:transparent}
+html .btn.primary:hover,html .btn.grad:hover{background:var(--lime-hover)}
+html input:focus{outline-color:var(--navy)}
+
+/* 30 %: cabeceras en azul marino */
+html header.top{background:var(--navy);border:1px solid var(--navy);color:#ffffff;border-radius:12px;padding:12px 16px}
+html body > header.top{border-radius:0}
+html header.top .btn:not(.primary){background:transparent;color:#ffffff;border-color:rgba(255,255,255,.38)}
+html header.top .btn:not(.primary):hover{background:var(--navy-2);border-color:var(--lime)}
+html header.top .title input{color:#ffffff;background:transparent;border-color:transparent}
+html header.top .title input:hover,html header.top .title input:focus{background:var(--navy-2);border-color:rgba(255,255,255,.38)}
+html header.top .logo{background:var(--lime);color:var(--navy)}
+html header.top .menu-list,html header.top .menu-list button{color:var(--ink)}
+
+/* Inicio y administración */
+html .bcard.head{background:var(--navy);color:#ffffff;border-color:var(--navy)}
+html .bcard.head p{color:var(--on-navy-muted)}
+html .bcard.head::before{box-shadow:none}
+html .bcard.head .top-actions .btn{color:#ffffff;border-color:rgba(255,255,255,.38)}
+html .bcard.head .top-actions .btn:hover{background:var(--navy-2)}
+html .tool .ico{background:var(--navy);color:var(--lime);box-shadow:none}
+html .tool .go{color:var(--navy)}
+html .tool.featured{background:var(--navy);color:#ffffff}
+html .tool.featured .num,html .tool.featured p{color:var(--on-navy-muted)}
+html .tool.featured .ico{background:var(--lime);color:var(--navy)}
+html .tool.featured .go{background:var(--lime);color:var(--navy)}
+html .tool.featured:hover,html .tool.featured:focus-visible{background:var(--navy-2);filter:none}
+
+/* Inicio de sesión: tarjeta blanca sobre azul marino */
+html body:has(> main.card){background:var(--navy)}
+html .card::before{box-shadow:none}
+html .tab[aria-selected="true"]{color:var(--navy)}
