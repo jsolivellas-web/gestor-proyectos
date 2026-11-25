@@ -1,0 +1,70 @@
+/* Estilo «cuaderno técnico», solo para el diagrama PERT: papel punteado, líneas negras, esquinas rectas,
+   números en monoespaciada y la ruta crítica en rojo bermellón. Se carga después de paleta.css y la
+   sustituye en esta página (por eso los selectores empiezan por "html body"). */
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap");
+
+html:root,html:root[data-theme]{
+  --bg:#fbfbf7; --surface:#ffffff; --ink:#16181d; --muted:#4e5259; --line:#16181d; --line2:#d9dbd2;
+  --accent:#16181d; --accent-ink:#ffffff; --accent-soft:#f1f0e8; --crit:#b93a14; --crit-soft:#fbeee9;
+  --arrow:#16181d; --paper-dot:#d9dbd2;
+  --sans:"Space Grotesk","Atkinson Hyperlegible",system-ui,sans-serif;
+}
+
+html body{
+  background-color:var(--bg);
+  background-image:radial-gradient(var(--paper-dot) 1px,transparent 1px);background-size:22px 22px;
+}
+html body h1,html body h2{letter-spacing:-.01em}
+html body .intro{color:var(--muted)}
+
+/* Cabecera: título grande subrayado, sin barra de color */
+html body header.top{background:transparent;border:0;border-bottom:3px solid var(--ink);border-radius:0;padding:4px 0 14px;color:var(--ink)}
+html body header.top .title input{font-size:clamp(1.5rem,3.4vw,2.3rem);font-weight:700;letter-spacing:-.02em;color:var(--ink);background:transparent;border-radius:0}
+html body header.top .title input:hover,html body header.top .title input:focus{background:var(--surface);border-color:var(--ink)}
+html body header.top .logo{background:var(--ink);color:#ffffff;border-radius:0}
+html body header.top .btn:not(.primary){background:var(--surface);color:var(--ink);border:2px solid var(--ink)}
+html body header.top .btn:not(.primary):hover{background:var(--accent-soft);border-color:var(--ink)}
+
+/* Bloques y botones: borde negro y esquinas rectas */
+html body .panel{border:2px solid var(--ink);border-radius:0;box-shadow:none}
+html body .btn{border:2px solid var(--ink);border-radius:0;background:var(--surface);color:var(--ink)}
+html body .btn:hover{background:var(--accent-soft);border-color:var(--ink)}
+html body .btn.primary,html body header.top .btn.primary{background:var(--crit);border-color:var(--crit);color:#ffffff}
+html body .btn.primary:hover{background:#9c300f;border-color:#9c300f}
+html body .btn.warn{border-color:var(--crit);color:var(--crit)}
+html body .menu-list{border:2px solid var(--ink);border-radius:0}
+html body .menu-list button{border-radius:0}
+
+html body .seg{border:2px solid var(--ink);border-radius:0}
+html body .seg button[aria-pressed="true"]{background:var(--ink);color:#ffffff}
+html body select,html body input[type=text],html body input[type=number]{border:1.5px solid var(--ink);border-radius:0;background:var(--surface)}
+html body .sb,html body .chip,html body .rm{border:1.5px solid var(--ink);border-radius:0}
+html body .chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#ffffff}
+html body .quick{background:var(--accent-soft);border:1.5px solid var(--ink);border-radius:0}
+html body .row{border:1.5px solid var(--ink);border-radius:0}
+html body .lt{background:var(--surface);color:var(--ink);border:2px solid var(--ink);border-radius:0;font-family:var(--mono)}
+html body .te{color:var(--ink)}
+
+/* Diagrama sobre papel */
+html body .scroll{border:2px solid var(--ink);border-radius:0;
+  background-color:#ffffff;background-image:radial-gradient(var(--paper-dot) 1px,transparent 1px);background-size:22px 22px}
+html body .bx{border:2px solid var(--ink)}
+html body .bx.mine{border:3px solid var(--crit)}
+html body .bx>*{border-color:var(--line2)}
+html body .bx .nm{background:var(--accent-soft);font-size:1.05rem}
+html body .bx .et{background:var(--accent-soft)}
+
+/* Tabla con cabecera negra */
+html body th,html body td{border-bottom:1px solid var(--line2)}
+html body th{background:var(--ink);color:#ffffff;font-family:var(--mono);letter-spacing:.02em}
+html body tr.c td{background:var(--crit-soft)}
+html body #tab td.inp input{border:1.5px solid var(--ink);border-radius:0}
+html body .fill .path,html body .summary .cp b{color:var(--crit)}
+html body .pert-prob{border:1.5px solid var(--ink);border-radius:0}
+
+/* Corrección */
+html body .pill{border-radius:0}
+html body .first{border-radius:0}
+html body .err{border-radius:0}
+html body .toast{border-radius:0;background:var(--ink);color:#ffffff}
+html body .legend span{color:var(--crit)}
